@@ -19,6 +19,7 @@ plain CSS path in [css.md](css.md) instead — the API is not available.
 - [Directional navigation](#directional-navigation)
 - [List reordering](#list-reordering)
 - [Next.js](#nextjs)
+- [Production requirements](#production-requirements)
 - [What not to do](#what-not-to-do)
 
 ## How React differs from plain CSS
@@ -29,8 +30,10 @@ screenshot morph, one name per identity, only named elements animate. Three thin
 1. **React calls `startViewTransition` for you.** You never call it. Calling it yourself
    while React is managing a transition interrupts React's.
 2. **You must wrap the update in a Transition.** A bare `setState` does not animate.
-3. **You style with View Transition Classes, not `::view-transition-name()`.** React
-   assigns the names itself.
+3. **You style with class names passed as props**, not by writing `view-transition-name` in
+   CSS. React generates a unique name per boundary; you only choose names yourself via
+   `name`, and you choose *animations* via `enter`/`exit`/`update`/`share`, each of which
+   takes a class name you then target with `::view-transition-group(.that-class)`.
 
 ## The four triggers
 
@@ -64,14 +67,25 @@ Give both sides the same `name` and React morphs one into the other:
 
 ```jsx
 // grid
-<ViewTransition name={`photo-${photo.id}`} share="morph" default="none">
+<ViewTransition name={`photo-${photo.id}`} share="auto" default="none">
   <Image src={photo.src} alt={photo.title} />
 </ViewTransition>
 
 // detail — same name
-<ViewTransition name={`photo-${photo.id}`} share="morph" default="none">
+<ViewTransition name={`photo-${photo.id}`} share="auto" default="none">
   <Image src={photo.src} alt={photo.title} />
 </ViewTransition>
+```
+
+`share="auto"` means "use the browser's default animation", which for a same-name pair *is*
+the morph. Any other string is a **CSS class name**, not a keyword — passing `share="morph"`
+adds a view-transition-class called `morph`, and unless you have a
+`::view-transition-group(.morph)` rule it does nothing. If you want to style the morph
+yourself, use a real class and write the rule:
+
+```css
+::view-transition-group(.morph)   { animation-duration: 400ms; }
+::view-transition-image-pair(.morph) { animation-name: via-blur; }
 ```
 
 Three rules that make this fail:
@@ -150,12 +164,19 @@ function nextSlide() {
 ```
 
 ```css
-::view-transition-new(.from-right) { --offset: 100%; animation-name: slide-in; }
+::view-transition-new(.from-right) { --offset: 100%;  animation-name: slide-in; }
 ::view-transition-new(.from-left)  { --offset: -100%; animation-name: slide-in; }
-::view-transition-old(.to-left)    { --offset: 100%; animation-name: slide-out; }
+::view-transition-old(.to-left)    { --offset: -100%; animation-name: slide-out; }
+::view-transition-old(.to-right)   { --offset: 100%;  animation-name: slide-out; }
+
 @keyframes slide-in  { from { transform: translateX(var(--offset)); opacity: 0; } }
 @keyframes slide-out { to   { transform: translateX(var(--offset)); opacity: 0; } }
 ```
+
+Each `enter` value needs a matching rule — omit `::view-transition-old(.to-right)` and the
+`previous` direction loses its exit animation with no error. Sign matters: going *next*,
+the old content leaves left (`-100%`) while the new arrives from the right (`100%`); get a
+sign wrong and the two cross through each other.
 
 Directional slides are the highest-risk effect for motion sensitivity — they move large
 areas across the viewport — so they are the first thing to disable under
@@ -186,8 +207,8 @@ shared-element pair, and it will not fire if one side is outside the viewport.
 includes `<ViewTransition>`, and route navigations are Transitions, so animations activate
 during navigation automatically.
 
-The `experimental.viewTransition: true` flag you may find in older docs was the Next 15
-gate. It is obsolete — do not add it.
+The `experimental.viewTransition: true` flag you may find in older docs was inert and has
+been removed — do not add it.
 
 Tag links with `transitionTypes` so the animation reflects direction:
 
@@ -212,6 +233,26 @@ navigation, so enter and exit never fire there.
 Browser-initiated back/forward carries no transition type, so no directional slide plays.
 The shared-element morph still applies if both pages share a name.
 
+## Production requirements
+
+Same two rules as the plain-CSS path, and React applies neither for you.
+
+```css
+::view-transition { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*), ::view-transition-new(*), ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+```
+
+Directional slides are the first thing to disable under reduced motion, since they move
+large areas across the viewport. If you keep a slide but want it gentler rather than
+instant, drop the travel and keep the cross-fade — the direction is still legible from
+which page you land on.
+
 ## What not to do
 
 | Never | Instead |
@@ -223,6 +264,6 @@ The shared-element morph still applies if both pages share a name.
 | A wrapper element around each list row | Let the row own its boundary |
 | `<ViewTransition>` not first in its subtree | Move it above the DOM node |
 | `name` used to force a list reorder | Use a stable `key` |
-| `experimental.viewTransition` in `next.config` | Not needed on Next 16 |
+| `experimental.viewTransition` in `next.config` | Inert and removed; nothing to set |
 | Assuming reduced motion is automatic | It never is — ship the media query |
 | Omitting `pointer-events: none` | The overlay eats rapid clicks |

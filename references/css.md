@@ -54,15 +54,25 @@ change is happening and to snapshot around it.
 
 ```js
 const supported = typeof document.startViewTransition === 'function';
-const run = (fn) => (supported ? document.startViewTransition(fn) : fn());
+const run = (fn) => {
+  if (!supported) { fn(); return; }
+  const t = document.startViewTransition(fn);
+  // ready/finished reject for ordinary reasons — a duplicate name, a superseding
+  // transition, a hidden document. Not an application error, so swallow it.
+  t.ready.catch(() => {});
+  t.finished.catch(() => {});
+  return t;
+};
 ```
 
-Two things about that one-liner:
+Three things about that helper:
 
 - **`fn()` alone is the correct fallback.** Without support, the page still works — it
   just changes instantly. This is why you feature-detect rather than assume.
 - **Never call `startViewTransition` unguarded.** It is `undefined` in a browser without
   support, so the call throws and takes your click handler down with it.
+- **Always attach a `catch`.** `ready` and `finished` reject on normal lifecycle events,
+  and an unhandled rejection surfaces as a console error that looks like a real bug.
 
 Note that `startViewTransition` returns an object and the *browser* calls your callback —
 it does not run synchronously. If you assert on the DOM immediately after calling it, you
@@ -142,9 +152,12 @@ Working example: [`../assets/demo.html#theme-wipe`](../assets/demo.html#theme-wi
 **Only one element can hold a given `view-transition-name` at a time.** This is the single
 most common reason a transition "does not work", and it fails quietly.
 
-Give two visible elements the same name and the browser skips the transition. In plain
-CSS there is no error, no console message — the elements just refuse to animate, and the
-page still behaves correctly, so the cause is easy to miss.
+Give two visible elements the same name and the browser skips the transition. Precisely:
+the CSS engine raises no error and, in Chromium, logs no warning — the elements just refuse
+to animate while the page keeps working correctly, so the cause is easy to miss. The
+`ViewTransition.ready` promise *does* reject, and Firefox and Safari surface that rejection
+as a console error, so what you observe depends on the browser. Handle the rejection
+either way rather than relying on it being invisible.
 
 For a list, derive the name from the item's identity so each row owns one:
 

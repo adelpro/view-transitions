@@ -22,10 +22,10 @@
   .lede { color:var(--muted); margin:0 0 32px; }
 
   /* The shared element: same name here as the thumbnail on the index page. */
+  /* The shared element. On the index page the name is applied to the clicked
+     card's thumbnail in JS, so exactly one element holds "hero" per document. */
   .hero { aspect-ratio:3/2; border-radius:14px; view-transition-name:hero;
           background:linear-gradient(135deg,var(--accent),#7c3aed); }
-  .thumb { aspect-ratio:3/2; border-radius:10px; view-transition-name:hero;
-           background:linear-gradient(135deg,var(--accent),#7c3aed); }
 
   .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
   .card { border:1px solid var(--line); border-radius:12px; overflow:hidden;

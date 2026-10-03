@@ -41,21 +41,30 @@
 
   /* ---- 1. shared element: card -> hero ---- */
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  /* An author `display` rule beats the UA's [hidden] { display: none }, so
+     hiding the grid needs its own rule or it stays on screen. */
+  .grid[hidden] { display: none; }
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
     overflow: hidden; cursor: pointer; text-align: left; padding: 0; width: 100%;
   }
+  /* NOTE: no view-transition-name here on purpose. All four thumbs exist at once,
+     and a name may be held by only ONE element at a time — naming every card
+     aborts the whole transition. The name is applied to the clicked thumb in JS
+     and removed again on the way back. See the click handler below. */
   .card .thumb {
     aspect-ratio: 3 / 2;
     background: linear-gradient(135deg, var(--accent), #7c3aed);
-    view-transition-name: hero;
   }
   .card .meta { padding: 9px 11px; font-size: 13px; color: var(--muted); }
   .hero-slot {
     aspect-ratio: 3 / 2; border-radius: 14px;
     background: linear-gradient(135deg, var(--accent), #7c3aed);
-    view-transition-name: hero;
   }
+  /* The hero slot's name is applied in JS only while the detail view is showing.
+     Left in CSS it would still be "holding" the name while hidden — a hidden
+     element with a duplicate name aborts the next transition just as a visible
+     one does. */
   .detail[hidden] { display: none; }
 
   /* ---- 2. list reorder: one name per row ---- */
@@ -152,6 +161,10 @@
       <em>relinquish</em> that name to the dialog. Skip the rename and the dialog appears from nowhere —
       there is no continuity to trace back to.</p>
     <button id="share" class="share">Share</button>
+    <button id="nohandoff">Open WITHOUT the handoff</button>
+    <p class="note" id="nohandoff-note" hidden>The button kept its <code>share</code> name and the
+      dialog never took it, so there was nothing to hand over. The dialog just appeared — no
+      continuity back to the button. Compare with the button above.</p>
     <dialog id="sheet">
       <h3 style="margin:0 0 6px">Lisbon</h3>
       <p class="note" style="margin:0 0 16px">Grew out of the button's box.</p>
@@ -171,7 +184,16 @@
   // Feature detection, once, for the whole file. `fn()` alone IS the fallback:
   // the page works, it just does not animate. Never call startViewTransition bare.
   const supported = typeof document.startViewTransition === 'function';
-  const run = (fn) => (supported ? document.startViewTransition(fn) : fn());
+  const run = (fn) => {
+    if (!supported) { fn(); return; }
+    const t = document.startViewTransition(fn);
+    // ready/finished reject for ordinary reasons — a name collision, a
+    // superseding transition, a hidden document. Not an app error, so swallow it.
+    // Without this the console fills with InvalidStateError on rapid clicks.
+    t.ready.catch(() => {});
+    t.finished.catch(() => {});
+    return t;
+  };
 
   const $ = (id) => document.getElementById(id);
 
@@ -189,20 +211,33 @@
       <div class="meta">${t.place} &middot; ${t.days}d</div>
     </button>`).join('');
 
+  // Name the ONE card being opened, immediately before the snapshot, then let the
+  // hero slot carry the same name after it. Exactly one element may hold "hero"
+  // at a time, so this is the whole trick.
   $('grid').addEventListener('click', (e) => {
     const card = e.target.closest('.card');
     if (!card) return;
     const t = trips.find((x) => x.id === card.dataset.id);
     $('detail-meta').textContent = `${t.place} — ${t.days} day${t.days === 1 ? '' : 's'}`;
+    $('detail-meta').dataset.id = t.id;
+    const thumb = card.querySelector('.thumb');
+    const slot = $('detail').querySelector('.hero-slot');
     run(() => {
+      thumb.style.viewTransitionName = 'hero';
       $('grid').hidden = true;
       $('detail').hidden = false;
+      slot.style.viewTransitionName = 'hero';
     });
   });
 
   $('back').addEventListener('click', () => run(() => {
+    const slot = $('detail').querySelector('.hero-slot');
+    slot.style.viewTransitionName = 'none';   // release before it hides
     $('detail').hidden = true;
     $('grid').hidden = false;
+    // Hand the name back to the card we came from.
+    const back = $('grid').querySelector(`[data-id="${$('detail-meta').dataset.id}"]`);
+    if (back) back.querySelector('.thumb').style.viewTransitionName = 'hero';
   }));
 
   // ---- 2. list reorder ----
@@ -251,6 +286,14 @@
     sheet.style.viewTransitionName = 'share'; // hand off
     sheet.showModal();
   }));
+  // The counter-example: same dialog, but the button never gives up the name,
+// so there is nothing for the dialog to inherit. It appears from nowhere.
+$('nohandoff').addEventListener('click', () => run(() => {
+    $('sheet').showModal();
+    $('nohandoff-note').hidden = false;
+  }));
+  sheet.addEventListener('close', () => { $('nohandoff-note').hidden = true; });
+
   sheet.addEventListener('close', () => run(() => {
     sheet.style.viewTransitionName = 'none';
     $('share').style.viewTransitionName = 'share';

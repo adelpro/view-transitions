@@ -10,16 +10,18 @@ is one CSS property instead of a shared-layout library.
 ## Try it first
 
 Open [`assets/demo.html`](assets/demo.html) — no build, no dependencies, works offline.
-Six techniques, each clickable:
+Five CSS techniques in one file, each clickable:
 
-1. **Card becomes a page** — `view-transition-name: hero` on both sides
+1. **Card becomes a page** — one name, applied to the clicked card and handed to the hero slot
 2. **Rows travel to a new position** — one name per row, plus a button that deliberately
-   breaks it so you can see the silent failure
+   breaks it so you can see the failure yourself
 3. **Theme toggle** — a `clip-path` reveal growing from the click point
-4. **Modal born from its button** — the name handoff, and what happens without it
+4. **Modal born from its button** — the name handoff, in the order it has to happen
 5. **Across a real page load** — cross-document navigation between two pages
-6. **Skeleton → content** — [`assets/react-suspense.html`](assets/react-suspense.html), on
-   real React 19.3
+
+Plus a sixth on real React 19.3:
+[`assets/react-suspense.html`](assets/react-suspense.html) — skeleton → content, including
+the case where animating *more* is the bug.
 
 ## Install
 

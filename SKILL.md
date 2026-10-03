@@ -58,7 +58,7 @@ Three paths. Choose by stack before writing anything.
 
 `<ViewTransition>` is stable in React 19.3 and **not available before it**. Next.js App
 Router needs **no configuration** — the `experimental.viewTransition` flag in older docs
-was the Next 15 gate and is obsolete.
+was inert and has been removed.
 
 ## What are you building
 
@@ -125,7 +125,7 @@ a morph, the sub-300ms rule still applies.
 | Never | Instead |
 | --- | --- |
 | Two elements sharing one `view-transition-name` | One name per identity, from a shared constant |
-| Unguarded `document.startViewTransition` | `if (typeof … === 'function')` |
+| Unguarded `document.startViewTransition` | The `run()` helper — feature-detect *and* run the update directly in the fallback |
 | Manual `startViewTransition` beside `<ViewTransition>` | Let React drive it — you interrupt it |
 | `default="none"` with no `share` | The pair silently stops morphing |
 | Wrapper element inside a list row | Let the row own its boundary |
@@ -134,7 +134,7 @@ a morph, the sub-300ms rule still applies.
 | `transform: scale()` to fake continuity | `view-transition-name` |
 | `navigation: auto` in a SPA, or on one page only | `startViewTransition`; both documents need it |
 | Naming a header and leaving it default | Kill its animation explicitly |
-| `experimental.viewTransition` in `next.config` | Not needed on Next 16 |
+| `experimental.viewTransition` in `next.config` | Inert and removed; nothing to set |
 | Shipping without `prefers-reduced-motion` | Gentler variant, not zero |
 | Omitting `pointer-events: none` | The overlay eats rapid clicks |
 
