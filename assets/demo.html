@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>View transitions — CSS demo</title>
+<style>
+  /* ---- tokens ---- */
+  :root {
+    --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e5e7eb;
+    --card: #f7f8fa; --accent: #2563eb;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  html[data-theme="dark"] {
+    --bg: #16181d; --fg: #f2f4f8; --muted: #9aa1ad; --line: #2a2e37;
+    --card: #1e222a; --accent: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+    transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px 96px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 17px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); margin: 0 0 40px; }
+  section { border-top: 1px solid var(--line); padding: 32px 0; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 18px; max-width: 60ch; }
+  button {
+    font: inherit; color: inherit; background: var(--card);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 13px; cursor: pointer;
+    transition: transform 120ms var(--ease-out), border-color 120ms var(--ease-out);
+  }
+  button:hover { border-color: var(--accent); }
+  button:active { transform: scale(0.97); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+
+  /* ---- 1. shared element: card -> hero ---- */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; cursor: pointer; text-align: left; padding: 0; width: 100%;
+  }
+  .card .thumb {
+    aspect-ratio: 3 / 2;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    view-transition-name: hero;
+  }
+  .card .meta { padding: 9px 11px; font-size: 13px; color: var(--muted); }
+  .hero-slot {
+    aspect-ratio: 3 / 2; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    view-transition-name: hero;
+  }
+  .detail[hidden] { display: none; }
+
+  /* ---- 2. list reorder: one name per row ---- */
+  ul.trips { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; }
+  ul.trips li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 11px 14px; border-bottom: 1px solid var(--line);
+    view-transition-name: var(--trip);
+    background: var(--bg);
+  }
+  ul.trips li:last-child { border-bottom: 0; }
+  ul.trips li .place { color: var(--muted); font-size: 13px; }
+  /* The failure demo: two rows sharing one --trip makes BOTH freeze rather than
+     error. Set from JS, not :nth-child, so it survives any row count. */
+  ul.trips li.clash { background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
+  ul.trips li.visited .place { color: var(--accent); }
+
+  /* ---- 3. theme wipe: reveal from the click point ---- */
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  ::view-transition-new(root) { animation: reveal 520ms var(--ease-in-out); }
+  @keyframes reveal {
+    from { clip-path: circle(0 at var(--x, 50%) var(--y, 50%)); }
+    to   { clip-path: circle(150% at var(--x, 50%) var(--y, 50%)); }
+  }
+
+  /* ---- production requirements: both are mandatory ---- */
+  /* The overlay captures pointer events for its whole duration. Without this,
+     a second click during the animation is swallowed. */
+  ::view-transition { pointer-events: none; }
+
+  /* Nothing applies this automatically. Directional wipes are the highest-risk
+     effect; morphs and crossfades much less so. */
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(*), ::view-transition-new(*), ::view-transition-group(*) {
+      animation-duration: 0s !important; animation-delay: 0s !important;
+    }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>View transitions</h1>
+  <p class="lede">Five CSS techniques. Click everything. Each section is cited by the skill's reference files.</p>
+
+  <section id="shared-element">
+    <h2>1. Card becomes a page</h2>
+    <p class="note">One property. Both sides carry <code>view-transition-name: hero</code>, so the browser
+      morphs the thumbnail into the hero slot instead of cutting.</p>
+    <div class="grid" id="grid"></div>
+    <div class="detail" id="detail" hidden>
+      <div class="hero-slot"></div>
+      <p class="note" id="detail-meta" style="margin-top:14px"></p>
+      <button id="back">Back to grid</button>
+    </div>
+  </section>
+
+  <section id="list-reorder">
+    <h2>2. Rows travel to a new position</h2>
+    <p class="note">Each row takes its own name via <code>--trip</code>. Sort, then hide visited.</p>
+    <div class="row">
+      <button id="sort">Sort</button>
+      <button id="hide">Hide visited</button>
+      <button id="dupe">Break it: duplicate a name</button>
+      <button id="fix">Restore</button>
+    </div>
+    <ul class="trips" id="trips"></ul>
+    <p class="note" id="dupe-note" hidden>Both rows above now share <code>--trip: clash</code>.
+      They will not animate — and nothing throws. This is the most common
+      &ldquo;it just doesn&rsquo;t animate&rdquo; cause, and in plain CSS it is completely silent.</p>
+  </section>
+
+  <section id="theme-wipe">
+    <h2>3. Theme toggle that spreads from the click</h2>
+    <p class="note">A <code>clip-path</code> reveal on <code>::view-transition-new(root)</code>, with the
+      click point fed in as <code>--x</code>/<code>--y</code>.</p>
+    <button id="theme">Toggle theme</button>
+  </section>
+</main>
+
+<script>
+  // Feature detection, once, for the whole file. `fn()` alone IS the fallback:
+  // the page works, it just does not animate. Never call startViewTransition bare.
+  const supported = typeof document.startViewTransition === 'function';
+  const run = (fn) => (supported ? document.startViewTransition(fn) : fn());
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---- 1. shared element ----
+  const trips = [
+    { id: 'trip-1', place: 'Lisbon',  days: 4 },
+    { id: 'trip-2', place: 'Porto',   days: 2 },
+    { id: 'trip-3', place: 'Sintra',  days: 1 },
+    { id: 'trip-4', place: 'Setubal', days: 1 },
+  ];
+
+  $('grid').innerHTML = trips.map((t) => `
+    <button class="card" data-id="${t.id}">
+      <div class="thumb"></div>
+      <div class="meta">${t.place} &middot; ${t.days}d</div>
+    </button>`).join('');
+
+  $('grid').addEventListener('click', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const t = trips.find((x) => x.id === card.dataset.id);
+    $('detail-meta').textContent = `${t.place} — ${t.days} day${t.days === 1 ? '' : 's'}`;
+    run(() => {
+      $('grid').hidden = true;
+      $('detail').hidden = false;
+    });
+  });
+
+  $('back').addEventListener('click', () => run(() => {
+    $('detail').hidden = true;
+    $('grid').hidden = false;
+  }));
+
+  // ---- 2. list reorder ----
+  let visible = trips.slice();
+  const render = () => {
+    $('trips').innerHTML = visible.map((t) => `
+      <li style="--trip: ${t.id}" class="${t.days === 1 ? 'visited' : ''}">
+        <span>${t.place}</span><span class="place">${t.days}d</span>
+      </li>`).join('');
+  };
+  render();
+
+  $('sort').addEventListener('click', () => run(() => { visible = [...visible].reverse(); render(); }));
+  $('hide').addEventListener('click', () => run(() => { visible = visible.filter((t) => t.days > 1); render(); }));
+
+  // Duplicate a name deliberately. Assigning from JS rather than :nth-child means
+  // it works at any row count — otherwise the demo silently does nothing once
+  // rows have been filtered out, and the one failure it exists to show never shows.
+  $('dupe').addEventListener('click', () => {
+    const lis = [...$('trips').children];
+    if (lis.length < 2) return;
+    lis[0].style.setProperty('--trip', 'clash');
+    lis[1].style.setProperty('--trip', 'clash');
+    lis[0].classList.add('clash');
+    lis[1].classList.add('clash');
+    $('dupe-note').hidden = false;
+  });
+  $('fix').addEventListener('click', () => { render(); $('dupe-note').hidden = true; });
+
+  // ---- 3. theme wipe ----
+  $('theme').addEventListener('click', (e) => {
+    const x = e.clientX, y = e.clientY;
+    document.documentElement.style.setProperty('--x', `${x}px`);
+    document.documentElement.style.setProperty('--y', `${y}px`);
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    run(() => { document.documentElement.dataset.theme = next; });
+  });
+</script>
+</body>
+</html>
