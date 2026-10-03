@@ -74,6 +74,18 @@
   ul.trips li.visited .place { color: var(--accent); }
 
   /* ---- 3. theme wipe: reveal from the click point ---- */
+  /* ---- 4. modal handoff ---- */
+  .share { view-transition-name: share; }
+  dialog {
+    border: 1px solid var(--line); border-radius: 14px; padding: 20px;
+    background: var(--bg); color: var(--fg); max-width: 340px;
+  }
+  dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+
+  /* ---- 5. cross-document: must be in BOTH documents, not just this one ---- */
+  @view-transition { navigation: auto; }
+
+  /* ---- 3. theme wipe: reveal from the click point ---- */
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
   ::view-transition-new(root) { animation: reveal 520ms var(--ease-in-out); }
   @keyframes reveal {
@@ -132,6 +144,26 @@
     <p class="note">A <code>clip-path</code> reveal on <code>::view-transition-new(root)</code>, with the
       click point fed in as <code>--x</code>/<code>--y</code>.</p>
     <button id="theme">Toggle theme</button>
+  </section>
+
+  <section id="modal-handoff">
+    <h2>4. Modal born from the button that opened it</h2>
+    <p class="note">The button holds <code>view-transition-name: share</code>. Inside the transition it must
+      <em>relinquish</em> that name to the dialog. Skip the rename and the dialog appears from nowhere —
+      there is no continuity to trace back to.</p>
+    <button id="share" class="share">Share</button>
+    <dialog id="sheet">
+      <h3 style="margin:0 0 6px">Lisbon</h3>
+      <p class="note" style="margin:0 0 16px">Grew out of the button's box.</p>
+      <button id="close">Close</button>
+    </dialog>
+  </section>
+
+  <section id="cross-document">
+    <h2>5. Across a real page load</h2>
+    <p class="note">Both pages carry <code>@view-transition {{ navigation: auto }}</code>. It is opt-in per
+      document — a rule on one side alone does nothing.</p>
+    <button id="trip">Open a trip page</button>
   </section>
 </main>
 
@@ -208,6 +240,24 @@
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     run(() => { document.documentElement.dataset.theme = next; });
   });
+
+  // ---- 4. modal handoff ----
+  // Order matters. The button MUST give up the name inside the same transition,
+  // or both elements hold "share" and the dialog has nothing to grow from.
+  const sheet = $('sheet');
+  $('share').addEventListener('click', () => run(() => {
+    const btn = $('share');
+    btn.style.viewTransitionName = 'none';   // relinquish
+    sheet.style.viewTransitionName = 'share'; // hand off
+    sheet.showModal();
+  }));
+  sheet.addEventListener('close', () => run(() => {
+    sheet.style.viewTransitionName = 'none';
+    $('share').style.viewTransitionName = 'share';
+  }));
+
+  // ---- 5. cross-document ----
+  $('trip').addEventListener('click', () => { location.href = 'trips.html'; });
 </script>
 </body>
 </html>
